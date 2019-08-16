@@ -18,7 +18,6 @@ package com.alipay.hulu.activity;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
-import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.support.annotation.Nullable;
@@ -54,7 +53,6 @@ import com.alipay.hulu.common.utils.LogUtil;
 import com.alipay.hulu.common.utils.MiscUtil;
 import com.alipay.hulu.common.utils.PermissionUtil;
 import com.alipay.hulu.common.utils.StringUtil;
-import com.alipay.hulu.event.RecordCaseChangedEvent;
 import com.alipay.hulu.replay.OperationStepProvider;
 import com.alipay.hulu.service.CaseRecordManager;
 import com.alipay.hulu.service.CaseReplayManager;
@@ -67,23 +65,19 @@ import com.alipay.hulu.shared.node.utils.PrepareUtil;
 import com.alipay.hulu.ui.HeadControlPanel;
 import com.alipay.hulu.util.SystemUtil;
 
-import org.greenrobot.eventbus.EventBus;
-import org.greenrobot.eventbus.Subscribe;
-import org.greenrobot.eventbus.ThreadMode;
-
 import java.util.Arrays;
 import java.util.List;
 
 /**
  * Created by lezhou.wyl on 2018/2/1.
  */
-@EntryActivity(icon = R.drawable.icon_luxiang, name = "录制回放", permissions = {"adb", "float", "toast:请将Soloπ添加到后台白名单中"}, index = 1, cornerText = "图像", cornerPersist = 3, cornerBg = 0xFFFF5900)
+@EntryActivity(icon = R.drawable.icon_luxiang, nameRes = R.string.record__name, permissions = {"adb", "float", "toast:请将Soloπ添加到后台白名单中"}, index = 1, cornerText = "New", cornerPersist = 3, cornerBg = 0xFFFF5900)
 public class NewRecordActivity extends BaseActivity {
 
     private static final String TAG = NewRecordActivity.class.getSimpleName();
     public static final String NEED_REFRESH_PAGE = "NEED_REFRESH_PAGE";
 
-    public static final String NEED_REFRESH_CASES_LIST = "NEED_REFRESH_CASES_LIST";
+    public static final String NEED_REFRESH_LOCAL_CASES_LIST = "NEED_REFRESH_LOCAL_CASES_LIST";
 
     private DrawerLayout mDrawerLayout;
 
@@ -116,7 +110,7 @@ public class NewRecordActivity extends BaseActivity {
         this.app = app;
     }
 
-    @Subscriber(@Param(value = NEED_REFRESH_CASES_LIST, sticky = false))
+    @Subscriber(@Param(value = NEED_REFRESH_LOCAL_CASES_LIST, sticky = false))
     public void notifyCaseListChange() {
         if (!isDestroyed()) {
             getRecentCaseList();
@@ -126,11 +120,9 @@ public class NewRecordActivity extends BaseActivity {
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        InjectorService injectorService = LauncherApplication.getInstance().findServiceByName(InjectorService.class.getName());
-        injectorService.register(this);
-
-        EventBus.getDefault().register(this);
         setContentView(R.layout.activity_record_new);
+        InjectorService.g().register(this);
+
         initDrawerLayout();
         initAppList();
         initHeadPanel();
@@ -169,6 +161,7 @@ public class NewRecordActivity extends BaseActivity {
                 if (caseInfo == null) {
                     return;
                 }
+                caseInfo = caseInfo.clone();
 
                 // 启动编辑页
                 Intent intent = new Intent(NewRecordActivity.this, CaseEditActivity.class);
@@ -200,7 +193,7 @@ public class NewRecordActivity extends BaseActivity {
                     public void onPermissionResult(boolean result, String reason) {
                         if (result) {
 
-                            showProgressDialog("正在加载中");
+                            showProgressDialog(getString(R.string.record__preparing));
 
                             BackgroundExecutor.execute(new Runnable() {
                                 @Override
@@ -226,7 +219,7 @@ public class NewRecordActivity extends BaseActivity {
                                             @Override
                                             public void run() {
                                                 dismissProgressDialog();
-                                                Toast.makeText(NewRecordActivity.this, "环境准备失败", Toast.LENGTH_SHORT).show();
+                                                Toast.makeText(NewRecordActivity.this, R.string.record__prepare_failed, Toast.LENGTH_SHORT).show();
                                             }
                                         });
                                     }
@@ -243,7 +236,7 @@ public class NewRecordActivity extends BaseActivity {
 
     private void initHeadPanel() {
         mPanel = (HeadControlPanel) findViewById(R.id.head_layout);
-        mPanel.setMiddleTitle("录制回放");
+        mPanel.setMiddleTitle(getString(R.string.record__name));
         mPanel.setBackIconClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -350,7 +343,7 @@ public class NewRecordActivity extends BaseActivity {
             @Override
             public void onClick(View v) {
                 if (StringUtil.isEmpty(mCaseName.getText().toString().trim())) {
-                    Toast.makeText(NewRecordActivity.this, "用例名不能为空", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(NewRecordActivity.this, R.string.record__case_name_empty, Toast.LENGTH_SHORT).show();
                     return;
                 }
 
@@ -384,7 +377,7 @@ public class NewRecordActivity extends BaseActivity {
                     public void onPermissionResult(boolean result, String reason) {
                         if (result) {
 
-                            showProgressDialog("正在加载中");
+                            showProgressDialog(getString(R.string.record__preparing));
 
                             BackgroundExecutor.execute(new Runnable() {
                                 @Override
@@ -410,7 +403,7 @@ public class NewRecordActivity extends BaseActivity {
                                             @Override
                                             public void run() {
                                                 dismissProgressDialog();
-                                                Toast.makeText(NewRecordActivity.this, "环境准备失败", Toast.LENGTH_SHORT).show();
+                                                Toast.makeText(NewRecordActivity.this, R.string.record__prepare_failed, Toast.LENGTH_SHORT).show();
                                             }
                                         });
                                     }
@@ -527,15 +520,7 @@ public class NewRecordActivity extends BaseActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        EventBus.getDefault().unregister(this);
-    }
-
-    @Subscribe(threadMode = ThreadMode.MAIN)
-    public void onRecordCaseChanged(RecordCaseChangedEvent event) {
-        if (event.getType() == RecordCaseChangedEvent.TYPE_CASE_ADD
-                || event.getType() == RecordCaseChangedEvent.TYPE_LOCAL_DELETE) {
-            getRecentCaseList();
-        }
+        InjectorService.g().unregister(this);
     }
 
     @Override

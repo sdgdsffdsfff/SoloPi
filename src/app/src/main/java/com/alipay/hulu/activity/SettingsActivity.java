@@ -42,11 +42,13 @@ import com.alipay.hulu.common.utils.FileUtils;
 import com.alipay.hulu.common.utils.LogUtil;
 import com.alipay.hulu.common.utils.PatchProcessUtil;
 import com.alipay.hulu.common.utils.StringUtil;
+import com.alipay.hulu.common.utils.activity.FileChooseDialogActivity;
 import com.alipay.hulu.common.utils.patch.PatchLoadResult;
 import com.alipay.hulu.shared.io.bean.GeneralOperationLogBean;
 import com.alipay.hulu.shared.io.bean.RecordCaseInfo;
 import com.alipay.hulu.shared.io.db.GreenDaoManager;
 import com.alipay.hulu.shared.io.db.RecordCaseInfoDao;
+import com.alipay.hulu.shared.io.util.OperationStepUtil;
 import com.alipay.hulu.shared.node.action.OperationMethod;
 import com.alipay.hulu.shared.node.tree.export.bean.OperationStep;
 import com.alipay.hulu.ui.HeadControlPanel;
@@ -70,6 +72,8 @@ import java.util.Map;
 public class SettingsActivity extends BaseActivity {
     private static final String TAG = "SettingsActivity";
 
+    private static final int REQUEST_FILE_CHOOSE = 1101;
+
     private HeadControlPanel mPanel;
 
     private View mRecordUploadWrapper;
@@ -86,6 +90,18 @@ public class SettingsActivity extends BaseActivity {
 
     private View mHightlightSettingWrapper;
     private TextView mHightlightSettingInfo;
+
+    private View mDisplaySystemAppSettingWrapper;
+    private TextView mDisplaySystemAppSettingInfo;
+
+    private View mCheckUpdateSettingWrapper;
+    private TextView mCheckUpdateSettingInfo;
+
+    private View mBaseDirSettingWrapper;
+    private TextView mBaseDirSettingInfo;
+
+    private View mOutputCharsetSettingWrapper;
+    private TextView mOutputCharsetSettingInfo;
 
     private View mAesSeedSettingWrapper;
     private TextView mAesSeedSettingInfo;
@@ -191,6 +207,59 @@ public class SettingsActivity extends BaseActivity {
             }
         });
 
+        mOutputCharsetSettingWrapper.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                showMultipleEditDialog(new OnDialogResultListener() {
+                                           @Override
+                                           public void onDialogPositive(List<String> data) {
+                                               if (data.size() == 1) {
+                                                   String charset = data.get(0);
+                                                   SPService.putString(SPService.KEY_OUTPUT_CHARSET, charset);
+                                                   mOutputCharsetSettingInfo.setText(charset);
+                                               }
+                                           }
+                                       }, getString(R.string.settings__output_charset),
+                        Collections.singletonList(new Pair<>(getString(R.string.settings__output_charset),
+                                SPService.getString(SPService.KEY_OUTPUT_CHARSET))));
+            }
+        });
+
+
+        mDisplaySystemAppSettingWrapper.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                new AlertDialog.Builder(SettingsActivity.this, R.style.SimpleDialogTheme)
+                        .setMessage(R.string.setting__display_system_app)
+                        .setPositiveButton(R.string.constant__yes, new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialog, int which) {
+                                SPService.putBoolean(SPService.KEY_DISPLAY_SYSTEM_APP, true);
+                                mDisplaySystemAppSettingInfo.setText(R.string.constant__yes);
+                                MyApplication.getInstance().reloadAppList();
+                                dialog.dismiss();
+                            }
+                        }).setNegativeButton(R.string.constant__no, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        SPService.putBoolean(SPService.KEY_DISPLAY_SYSTEM_APP, false);
+                        mDisplaySystemAppSettingInfo.setText(R.string.constant__no);
+                        MyApplication.getInstance().reloadAppList();
+                        dialog.dismiss();
+                    }
+                }).show();
+            }
+        });
+
+        mBaseDirSettingWrapper.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                FileChooseDialogActivity.startFileChooser(SettingsActivity.this,
+                        REQUEST_FILE_CHOOSE, StringUtil.getString(R.string.settings__base_dir), "solopi",
+                        FileUtils.getSolopiDir());
+            }
+        });
+
         mAesSeedSettingWrapper.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -265,18 +334,42 @@ public class SettingsActivity extends BaseActivity {
             public void onClick(View v) {
                 new AlertDialog.Builder(SettingsActivity.this, R.style.SimpleDialogTheme)
                         .setMessage("回放时是否高亮待操作控件？")
-                        .setPositiveButton("是", new DialogInterface.OnClickListener() {
+                        .setPositiveButton(R.string.constant__yes, new DialogInterface.OnClickListener() {
                             @Override
                             public void onClick(DialogInterface dialog, int which) {
                                 SPService.putBoolean(SPService.KEY_HIGHLIGHT_REPLAY_NODE, true);
-                                mHightlightSettingInfo.setText("是");
+                                mHightlightSettingInfo.setText(R.string.constant__yes);
                                 dialog.dismiss();
                             }
-                        }).setNegativeButton("否", new DialogInterface.OnClickListener() {
+                        }).setNegativeButton(R.string.constant__no, new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
                         SPService.putBoolean(SPService.KEY_HIGHLIGHT_REPLAY_NODE, false);
-                        mHightlightSettingInfo.setText("否");
+                        mHightlightSettingInfo.setText(R.string.constant__no);
+                        dialog.dismiss();
+                    }
+                }).show();
+            }
+        });
+
+        // check update
+        mCheckUpdateSettingWrapper.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                new AlertDialog.Builder(SettingsActivity.this, R.style.SimpleDialogTheme)
+                        .setMessage(R.string.settings__check_update)
+                        .setPositiveButton(R.string.constant__yes, new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialog, int which) {
+                                SPService.putBoolean(SPService.KEY_CHECK_UPDATE, true);
+                                mCheckUpdateSettingInfo.setText(R.string.constant__yes);
+                                dialog.dismiss();
+                            }
+                        }).setNegativeButton(R.string.constant__no, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        SPService.putBoolean(SPService.KEY_CHECK_UPDATE, false);
+                        mCheckUpdateSettingInfo.setText(R.string.constant__no);
                         dialog.dismiss();
                     }
                 }).show();
@@ -335,6 +428,10 @@ public class SettingsActivity extends BaseActivity {
 
                                         // 加载实例
                                         RecordCaseInfo caseInfo = JSON.parseObject(sb.toString(), RecordCaseInfo.class);
+                                        String operationLog = caseInfo.getOperationLog();
+                                        GeneralOperationLogBean log = JSON.parseObject(operationLog, GeneralOperationLogBean.class);
+                                        OperationStepUtil.beforeStore(log);
+                                        caseInfo.setOperationLog(JSON.toJSONString(log));
 
                                         GreenDaoManager.getInstance().getRecordCaseInfoDao().insert(caseInfo);
 
@@ -447,7 +544,7 @@ public class SettingsActivity extends BaseActivity {
         new AlertDialog.Builder(SettingsActivity.this, R.style.AppDialogTheme)
                 .setTitle(title)
                 .setView(v)
-                .setPositiveButton("确定", new DialogInterface.OnClickListener() {
+                .setPositiveButton(R.string.constant__confirm, new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
                         List<String> result = new ArrayList<>(editTexts.size() + 1);
@@ -462,7 +559,7 @@ public class SettingsActivity extends BaseActivity {
                         }
                         dialog.dismiss();
                     }
-                }).setNegativeButton("取消", new DialogInterface.OnClickListener() {
+                }).setNegativeButton(R.string.constant__cancel, new DialogInterface.OnClickListener() {
             @Override
             public void onClick(DialogInterface dialog, int which) {
                 dialog.dismiss();
@@ -479,7 +576,7 @@ public class SettingsActivity extends BaseActivity {
         mRecordScreenUploadInfo = (TextView) findViewById(R.id.recordscreen_upload_setting_info);
         String path = SPService.getString(SPService.KEY_RECORD_SCREEN_UPLOAD);
         if (StringUtil.isEmpty(path)) {
-            mRecordScreenUploadInfo.setText("未设置");
+            mRecordScreenUploadInfo.setText(R.string.settings__unset);
         } else {
             mRecordScreenUploadInfo.setText(path);
         }
@@ -488,7 +585,7 @@ public class SettingsActivity extends BaseActivity {
         mRecordUploadInfo = (TextView) findViewById(R.id.performance_upload_setting_info);
         path = SPService.getString(SPService.KEY_PERFORMANCE_UPLOAD);
         if (StringUtil.isEmpty(path)) {
-            mRecordUploadInfo.setText("未设置");
+            mRecordUploadInfo.setText(R.string.settings__unset);
         } else {
             mRecordUploadInfo.setText(path);
         }
@@ -503,17 +600,43 @@ public class SettingsActivity extends BaseActivity {
             mPatchListInfo.setText(path);
         }
 
+        mOutputCharsetSettingWrapper = findViewById(R.id.output_charset_setting_wrapper);
+        mOutputCharsetSettingInfo = (TextView) findViewById(R.id.output_charset_setting_info);
+        mOutputCharsetSettingInfo.setText(SPService.getString(SPService.KEY_OUTPUT_CHARSET, "GBK"));
+
         mResolutionSettingWrapper = findViewById(R.id.screenshot_resolution_setting_wrapper);
         mResolutionSettingInfo = (TextView) findViewById(R.id.screenshot_resolution_setting_info);
         mResolutionSettingInfo.setText(SPService.getInt(SPService.KEY_SCREENSHOT_RESOLUTION, 720) + "P");
 
         mHightlightSettingWrapper = findViewById(R.id.replay_highlight_setting_wrapper);
         mHightlightSettingInfo = (TextView) findViewById(R.id.replay_highlight_setting_info);
-        mHightlightSettingInfo.setText(SPService.getBoolean(SPService.KEY_HIGHLIGHT_REPLAY_NODE, true)? "是": "否");
+        mHightlightSettingInfo.setText(SPService.getBoolean(SPService.KEY_HIGHLIGHT_REPLAY_NODE, true)? R.string.constant__yes: R.string.constant__no);
+
+        mDisplaySystemAppSettingWrapper = findViewById(R.id.display_system_app_setting_wrapper);
+        mDisplaySystemAppSettingInfo = (TextView) findViewById(R.id.display_system_app_setting_info);
+        boolean displaySystemApp = SPService.getBoolean(SPService.KEY_DISPLAY_SYSTEM_APP, false);
+        if (displaySystemApp) {
+            mDisplaySystemAppSettingInfo.setText(R.string.constant__yes);
+        } else {
+            mDisplaySystemAppSettingInfo.setText(R.string.constant__no);
+        }
+
+        mCheckUpdateSettingWrapper = findViewById(R.id.check_update_setting_wrapper);
+        mCheckUpdateSettingInfo = (TextView) findViewById(R.id.check_update_setting_info);
+        boolean checkUpdate = SPService.getBoolean(SPService.KEY_CHECK_UPDATE, true);
+        if (checkUpdate) {
+            mCheckUpdateSettingInfo.setText(R.string.constant__yes);
+        } else {
+            mCheckUpdateSettingInfo.setText(R.string.constant__no);
+        }
+
+        mBaseDirSettingWrapper = findViewById(R.id.base_dir_setting_wrapper);
+        mBaseDirSettingInfo = (TextView) findViewById(R.id.base_dir_setting_info);
+        mBaseDirSettingInfo.setText(FileUtils.getSolopiDir().getPath());
 
         mAesSeedSettingWrapper = findViewById(R.id.aes_seed_setting_wrapper);
         mAesSeedSettingInfo = (TextView) findViewById(R.id.aes_seed_setting_info);
-        mAesSeedSettingInfo.setText(SPService.getString(SPService.KEY_AES_KEY, "com.alipay.hulu"));
+        mAesSeedSettingInfo.setText(SPService.getString(SPService.KEY_AES_KEY, AESUtils.DEFAULT_AES_KEY));
 
         mClearFilesSettingWrapper = findViewById(R.id.clear_files_setting_wrapper);
         mClearFilesSettingInfo = (TextView) findViewById(R.id.clear_files_setting_info);
@@ -522,9 +645,9 @@ public class SettingsActivity extends BaseActivity {
         mHideLogSettingInfo = (TextView) findViewById(R.id.hide_log_setting_info);
         boolean hideLog = SPService.getBoolean(SPService.KEY_HIDE_LOG, true);
         if (hideLog) {
-            mHideLogSettingInfo.setText("是");
+            mHideLogSettingInfo.setText(R.string.constant__yes);
         } else {
-            mHideLogSettingInfo.setText("否");
+            mHideLogSettingInfo.setText(R.string.constant__no);
         }
 
         mImportCaseSettingWrapper = findViewById(R.id.import_case_setting_wrapper);
@@ -543,13 +666,29 @@ public class SettingsActivity extends BaseActivity {
         mAboutBtn = findViewById(R.id.about_wrapper);
     }
 
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode == REQUEST_FILE_CHOOSE) {
+            if (resultCode == RESULT_OK) {
+                String targetFile = data.getStringExtra(FileChooseDialogActivity.KEY_TARGET_FILE);
+                if (!StringUtil.isEmpty(targetFile)) {
+                    SPService.putString(SPService.KEY_BASE_DIR, targetFile);
+                    mBaseDirSettingInfo.setText(targetFile);
+                    FileUtils.setSolopiBaseDir(targetFile);
+                }
+            }
+        } else {
+            super.onActivityResult(requestCode, resultCode, data);
+        }
+    }
+
     /**
      * 更新存储的用例
      * @param oldSeed
      * @param newSeed
      */
     private void updateStoredRecords(final String oldSeed, final String newSeed) {
-        showProgressDialog("开始更新用例");
+        showProgressDialog(getString(R.string.settings__start_update_cases));
         BackgroundExecutor.execute(new Runnable() {
             @Override
             public void run() {
@@ -560,7 +699,7 @@ public class SettingsActivity extends BaseActivity {
 
                     if (cases != null && cases.size() > 0) {
                         for (int i = 0; i < cases.size(); i++) {
-                            showProgressDialog("更新用例(" + (i + 1) + "/" + cases.size() + ")");
+                            showProgressDialog(getString(R.string.settings__updating_cases, i + 1, cases.size()));
                             RecordCaseInfo caseInfo = cases.get(i);
                             GeneralOperationLogBean generalOperation;
                             try {
@@ -574,6 +713,10 @@ public class SettingsActivity extends BaseActivity {
                             if (generalOperation == null) {
                                 continue;
                             }
+
+                            // load file content
+                            OperationStepUtil.afterLoad(generalOperation);
+
                             List<OperationStep> steps = generalOperation.getSteps();
                             if (generalOperation.getSteps() != null) {
                                 for (OperationStep step : steps) {
@@ -593,6 +736,7 @@ public class SettingsActivity extends BaseActivity {
                                     }
                                 }
                             }
+                            OperationStepUtil.beforeStore(generalOperation);
 
                             // 更新operationLog字段
                             caseInfo.setOperationLog(JSON.toJSONString(generalOperation));

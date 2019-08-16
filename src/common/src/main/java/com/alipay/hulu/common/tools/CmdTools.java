@@ -24,6 +24,7 @@ import android.os.Looper;
 import android.support.annotation.IntRange;
 import android.util.Base64;
 
+import com.alipay.hulu.common.R;
 import com.alipay.hulu.common.application.LauncherApplication;
 import com.alipay.hulu.common.bean.ProcessInfo;
 import com.alipay.hulu.common.injector.InjectorService;
@@ -712,7 +713,7 @@ public class CmdTools {
             if (ERROR_NO_CONNECTION.equals(result) || ERROR_CONNECTION_ILLEGAL_STATE.equals(result)) {
                 generateConnection();
                 MiscUtil.sleep(2000);
-            } else if (ERROR_CONNECTION_COMMON_EXCEPTION.equals("result")) {
+            } else if (ERROR_CONNECTION_COMMON_EXCEPTION.equals(result)) {
                 MiscUtil.sleep(2000);
             } else {
                 break;
@@ -1290,12 +1291,12 @@ public class CmdTools {
                         }
 
                         if (con == null) {
-                            LauncherApplication.getInstance().showToast("ADB连接中断，请尝试重新开启调试端口");
+                            LauncherApplication.getInstance().showToast(StringUtil.getString(R.string.cmd__adb_break));
                             return;
                         }
 
                         // 回首页
-                        LauncherApplication.getInstance().showDialog(con, "ADB连接中断，请尝试重新开启调试端口", "好的", null);
+                        LauncherApplication.getInstance().showDialog(con, StringUtil.getString(R.string.cmd__adb_break), StringUtil.getString(R.string.constant__sure), null);
 
                         // 通知各个功能ADB挂了
                         InjectorService.g().pushMessage(FATAL_ADB_CANNOT_RECOVER);

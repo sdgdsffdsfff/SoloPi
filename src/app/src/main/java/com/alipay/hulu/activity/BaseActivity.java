@@ -19,6 +19,8 @@ import android.app.ProgressDialog;
 import android.content.Context;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
+import android.support.v4.app.Fragment;
+import android.support.v4.app.FragmentManager;
 import android.support.v7.app.AppCompatActivity;
 import android.text.TextUtils;
 import android.view.View;
@@ -30,6 +32,9 @@ import com.alipay.hulu.common.application.LauncherApplication;
 import com.alipay.hulu.common.utils.DeviceInfoUtil;
 import com.alipay.hulu.common.utils.LogUtil;
 
+import java.util.HashSet;
+import java.util.Set;
+
 /**
  * Created by lezhou.wyl on 2018/1/28.
  */
@@ -38,6 +43,8 @@ public abstract class BaseActivity extends AppCompatActivity {
     private static boolean initializeScreenInfo = false;
 
     private boolean canShowDialog;
+
+    private Set<String> fragmentTags = new HashSet<>();
 
     private static Toast toast;
 
@@ -211,5 +218,31 @@ public abstract class BaseActivity extends AppCompatActivity {
         getWindowManager().getDefaultDisplay().getRealSize(DeviceInfoUtil.realScreenSize);
         getWindowManager().getDefaultDisplay().getSize(DeviceInfoUtil.curScreenSize);
         getWindowManager().getDefaultDisplay().getMetrics(DeviceInfoUtil.metrics);
+    }
+
+    /**
+     * 添加Fragment tag信息
+     * @param tag
+     */
+    public void addFragmentTag(String tag) {
+        fragmentTags.add(tag);
+    }
+
+    public Set<String> getAllFragmentTags() {
+        return new HashSet<>(fragmentTags);
+    }
+
+    /**
+     * 根据tag查找fragment
+     * @param tag
+     * @return
+     */
+    public Fragment getFragmentByTag(String tag) {
+        FragmentManager supported = getSupportFragmentManager();
+        if (supported != null) {
+            return supported.findFragmentByTag(tag);
+        }
+
+        return null;
     }
 }

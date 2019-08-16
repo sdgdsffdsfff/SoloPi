@@ -20,7 +20,6 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.support.annotation.Nullable;
-import android.support.v4.app.Fragment;
 import android.support.v7.app.AlertDialog;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -37,7 +36,6 @@ import android.widget.TextView;
 import com.alibaba.fastjson.JSON;
 import com.alipay.hulu.R;
 import com.alipay.hulu.activity.CaseEditActivity;
-import com.alipay.hulu.activity.CaseStepEditActivity;
 import com.alipay.hulu.activity.MyApplication;
 import com.alipay.hulu.activity.NewRecordActivity;
 import com.alipay.hulu.adapter.ReplayListAdapter;
@@ -52,20 +50,18 @@ import com.alipay.hulu.common.utils.FileUtils;
 import com.alipay.hulu.common.utils.LogUtil;
 import com.alipay.hulu.common.utils.MiscUtil;
 import com.alipay.hulu.common.utils.PermissionUtil;
-import com.alipay.hulu.event.RecordCaseChangedEvent;
+import com.alipay.hulu.common.utils.StringUtil;
 import com.alipay.hulu.replay.OperationStepProvider;
 import com.alipay.hulu.replay.RepeatStepProvider;
 import com.alipay.hulu.service.CaseReplayManager;
+import com.alipay.hulu.shared.io.bean.GeneralOperationLogBean;
 import com.alipay.hulu.shared.io.bean.RecordCaseInfo;
 import com.alipay.hulu.shared.io.db.GreenDaoManager;
 import com.alipay.hulu.shared.io.db.RecordCaseInfoDao;
+import com.alipay.hulu.shared.io.util.OperationStepUtil;
 import com.alipay.hulu.shared.node.action.PerformActionEnum;
 import com.alipay.hulu.shared.node.utils.AppUtil;
 import com.alipay.hulu.util.DialogUtils;
-
-import org.greenrobot.eventbus.EventBus;
-import org.greenrobot.eventbus.Subscribe;
-import org.greenrobot.eventbus.ThreadMode;
 
 import java.io.BufferedWriter;
 import java.io.File;
@@ -79,7 +75,7 @@ import java.util.regex.Pattern;
  * Created by lezhou.wyl on 2018/7/30.
  */
 
-public class ReplayListFragment extends Fragment {
+public class ReplayListFragment extends BaseFragment {
     private static final String TAG = "ReplayListFrag";
     private static final String KEY_ARG_FRAGMENT_TYPE = "KEY_ARG_FRAGMENT_TYPE";
 
@@ -105,8 +101,6 @@ public class ReplayListFragment extends Fragment {
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        EventBus.getDefault().register(this);
-
         InjectorService.g().register(this);
     }
 
@@ -128,8 +122,8 @@ public class ReplayListFragment extends Fragment {
     /**
      * 重载下用例
      */
-    @Subscriber(value = @Param(value = NewRecordActivity.NEED_REFRESH_CASES_LIST, sticky = false))
-    public void reloadCases() {
+    @Subscriber(value = @Param(value = NewRecordActivity.NEED_REFRESH_LOCAL_CASES_LIST, sticky = false))
+    public void reloadLocalCases() {
         getReplayRecordsFromDB();
     }
 
@@ -167,16 +161,7 @@ public class ReplayListFragment extends Fragment {
         mAdapter.setOnEditClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                RecordCaseInfo caseInfo = (RecordCaseInfo) mAdapter.getItem(position);
-                if (caseInfo == null) {
-                    return;
-                }
-
-                // 启动编辑页
-                Intent intent = new Intent(getActivity(), CaseEditActivity.class);
-                int caseId = CaseStepHolder.storeCase(caseInfo);
-                intent.putExtra(CaseEditActivity.RECORD_CASE_EXTRA, caseId);
-                startActivity(intent);
+                editCase(position);
             }
         });
 
@@ -223,9 +208,6 @@ public class ReplayListFragment extends Fragment {
                             case PLAY_MULTI_TIMES:
                                 repeatPrepare(position);
                                 break;
-                            case EDIT_CASE:
-                                editCase(position);
-                                break;
                         }
                     }
 
@@ -245,13 +227,20 @@ public class ReplayListFragment extends Fragment {
         });
     }
 
+    /**
+     * 编辑用例描述信息
+     * @param position
+     */
     private void editCase(int position) {
-        Intent intent = new Intent(getActivity(), CaseStepEditActivity.class);
-
-        RecordCaseInfo caseInfo = ((RecordCaseInfo) mAdapter.getItem(position)).clone();
-        // 暂存
-        int id = CaseStepHolder.storeCase(caseInfo);
-        intent.putExtra("case", id);
+        RecordCaseInfo caseInfo = (RecordCaseInfo) mAdapter.getItem(position);
+        if (caseInfo == null) {
+            return;
+        }
+        caseInfo = caseInfo.clone();
+        // 启动编辑页
+        Intent intent = new Intent(getActivity(), CaseEditActivity.class);
+        int caseId = CaseStepHolder.storeCase(caseInfo);
+        intent.putExtra(CaseEditActivity.RECORD_CASE_EXTRA, caseId);
         startActivity(intent);
     }
 
@@ -262,22 +251,38 @@ public class ReplayListFragment extends Fragment {
     private void deleteCase(final int position) {
         AlertDialog dialog = new AlertDialog.Builder(getContext(), R.style.SimpleDialogTheme)
                 .setCancelable(false)
-                .setMessage("删除此用例？")
-                .setPositiveButton("确定", new DialogInterface.OnClickListener() {
+                .setMessage(R.string.replay__delete_case)
+                .setPositiveButton(R.string.constant__confirm, new DialogInterface.OnClickListener() {
                     @Override
-                    public void onClick(DialogInterface dialog, int which) {
+                    public void onClick(final DialogInterface dialog, int which) {
                         final RecordCaseInfo recordCaseInfo = (RecordCaseInfo) mAdapter.getItem(position);
                         if (recordCaseInfo == null) {
                             return;
                         }
-                        GreenDaoManager.getInstance().getRecordCaseInfoDao().deleteByKey(recordCaseInfo.getId());
-                        mAdapter.deleteCase(recordCaseInfo);
-                        EventBus.getDefault().post(new RecordCaseChangedEvent(
-                                RecordCaseChangedEvent.TYPE_LOCAL_DELETE, recordCaseInfo.getId()));
 
-                        dialog.dismiss();
+                        // delete step file
+                        BackgroundExecutor.execute(new Runnable() {
+                            @Override
+                            public void run() {
+                                String operationLog = recordCaseInfo.getOperationLog();
+                                if (!StringUtil.isEmpty(operationLog)) {
+                                    GeneralOperationLogBean logBean = JSON.parseObject(operationLog, GeneralOperationLogBean.class);
+                                    if (logBean != null && !StringUtil.isEmpty(logBean.getStorePath())) {
+                                        File steps = new File(logBean.getStorePath());
+                                        if (steps.exists()) {
+                                            FileUtils.deleteFile(steps);
+                                        }
+                                    }
+                                }
+                                GreenDaoManager.getInstance().getRecordCaseInfoDao().deleteByKey(recordCaseInfo.getId());
+                                InjectorService.g().pushMessage(NewRecordActivity.NEED_REFRESH_LOCAL_CASES_LIST);
+
+                                dialog.dismiss();
+                            }
+                        });
+
                     }
-                }).setNegativeButton("取消", new DialogInterface.OnClickListener() {
+                }).setNegativeButton(R.string.constant__cancel, new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
                         dialog.dismiss();
@@ -296,10 +301,16 @@ public class ReplayListFragment extends Fragment {
         if (caseInfo == null) {
             return;
         }
-
         BackgroundExecutor.execute(new Runnable() {
             @Override
             public void run() {
+                // 读取实际用例信息
+                String operationLog = caseInfo.getOperationLog();
+                GeneralOperationLogBean logBean = JSON.parseObject(operationLog, GeneralOperationLogBean.class);
+                OperationStepUtil.afterLoad(logBean);
+                logBean.setStorePath(null);
+                caseInfo.setOperationLog(JSON.toJSONString(logBean));
+
                 String content = JSON.toJSONString(caseInfo);
 
                 // 导出文件
@@ -334,7 +345,7 @@ public class ReplayListFragment extends Fragment {
         final AlertDialog dialog = new AlertDialog.Builder(getActivity(), R.style.AppDialogTheme)
                 .setTitle("请输入回放次数")
                 .setView(v)
-                .setPositiveButton("开始执行", new DialogInterface.OnClickListener() {
+                .setPositiveButton(R.string.constant__start_execution, new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
                         LogUtil.i(TAG, "Positive " + which);
@@ -412,7 +423,7 @@ public class ReplayListFragment extends Fragment {
     private void initEmptyView(View view) {
         mEmptyView = view.findViewById(R.id.empty_view_container);
         mEmptyTextView = (TextView) view.findViewById(R.id.empty_text);
-        mEmptyTextView.setText("您还没有录制用例哦");
+        mEmptyTextView.setText(R.string.record__no_local_case);
     }
 
     /**
@@ -439,12 +450,7 @@ public class ReplayListFragment extends Fragment {
 
     @Override
     public void onDestroy() {
-        EventBus.getDefault().unregister(this);
+        InjectorService.g().unregister(this);
         super.onDestroy();
-    }
-
-    @Subscribe(threadMode = ThreadMode.MAIN)
-    public void onCaseDeleted(RecordCaseChangedEvent event) {
-
     }
 }

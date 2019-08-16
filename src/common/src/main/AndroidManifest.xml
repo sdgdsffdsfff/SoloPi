@@ -23,5 +23,7 @@
         >
         <activity android:name=".utils.activity.PermissionDialogActivity"
             android:theme="@style/PermissionAppDialogTheme"/>
+        <activity android:name=".utils.activity.FileChooseDialogActivity"
+            android:theme="@style/PermissionAppDialogTheme" />
     </application>
 </manifest>
