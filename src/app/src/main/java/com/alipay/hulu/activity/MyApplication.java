@@ -26,6 +26,7 @@ import android.os.Bundle;
 import android.provider.Settings;
 import android.view.WindowManager;
 
+import com.alipay.hulu.R;
 import com.alipay.hulu.bean.CaseStepHolder;
 import com.alipay.hulu.bean.ReplayResultBean;
 import com.alipay.hulu.common.application.LauncherApplication;
@@ -164,7 +165,7 @@ public class MyApplication extends LauncherApplication {
                 lastTime = appInfo;
                 String app = content[1].split(":")[1].trim();
 
-                // 如果发现了葫芦娃或者目标应用的Anr信息
+                // 如果发现了SoloPi或者目标应用的Anr信息
                 if (StringUtil.equals(getInstance().appPackage, app) || StringUtil.equals(app, MyApplication.getInstance().getPackageName())) {
                     LogUtil.w(TAG, "Find anr info: " + app);
 
@@ -181,7 +182,7 @@ public class MyApplication extends LauncherApplication {
 
                     LogUtil.w(TAG, "Copy anr file result: " + result);
 
-                    MyApplication.getInstance().showToast("发现anr信息，已拷贝至: " + pathInShell);
+                    MyApplication.getInstance().showToast(getString(R.string.app__find_anr_info, pathInShell));
                 }
             }
         }
